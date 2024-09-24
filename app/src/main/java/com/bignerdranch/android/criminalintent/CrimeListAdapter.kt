@@ -2,6 +2,7 @@ package com.bignerdranch.android.criminalintent
 
 import android.text.Layout
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.recyclerview.widget.RecyclerView
@@ -20,6 +21,12 @@ class CrimeHolder(
                 "${crime.title} clicked!",
                 Toast.LENGTH_SHORT
             ).show()
+        }
+        // add am ImageView instance
+        binding.crimeSolved.visibility = if (crime.isSolved){
+            View.VISIBLE
+        } else{
+            View.GONE
         }
     }
 }
