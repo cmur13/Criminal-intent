@@ -10,5 +10,6 @@ data class Crime(
     @PrimaryKey val id: UUID,
     val title: String,
     val date: Date,
-    val isSolved: Boolean
+    val isSolved: Boolean,
+    val suspect: String = "" // adding a suspect property to hold the name of the suspect
 )
