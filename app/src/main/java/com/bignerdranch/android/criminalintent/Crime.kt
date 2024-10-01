@@ -11,5 +11,6 @@ data class Crime(
     val title: String,
     val date: Date,
     val isSolved: Boolean,
-    val suspect: String = "" // adding a suspect property to hold the name of the suspect
+    val suspect: String = "", // adding a suspect property to hold the name of the suspect
+    val photoFileName:String? = null // adding the filename property
 )

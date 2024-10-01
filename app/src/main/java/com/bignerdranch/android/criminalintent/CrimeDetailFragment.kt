@@ -1,8 +1,11 @@
 package com.bignerdranch.android.criminalintent
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.os.Bundle
+import android.provider.ContactsContract
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -21,6 +24,9 @@ import java.util.Date
 import android.text.format.DateFormat
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
+import androidx.core.view.doOnLayout
+import java.io.File
 
 
 private const val DATE_FORMAT = "EEE, MMM, dd"
@@ -40,8 +46,22 @@ class CrimeDetailFragment: Fragment() {
     // registering for a result
     private val selectSuspect = registerForActivityResult(
         ActivityResultContracts.PickContact()){ uri: Uri? ->
-        // handle the result
+            // invoke parseContactSelection
+            uri?.let { parseContactSelection(it)
+        }
     }
+
+    private val takePhoto = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ){
+        didTakePhoto: Boolean ->
+        if(didTakePhoto && photoName != null){
+            crimeDetailViewModel.updateCrime {oldCrime->
+                oldCrime.copy(photoFileName = photoName)
+            }
+        }
+    }
+    private var photoName: String? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -69,6 +89,25 @@ class CrimeDetailFragment: Fragment() {
                 crimeSuspect.setOnClickListener {
                     selectSuspect.launch(null)
                 }
+                val selectSuspectIntent = selectSuspect.contract.createIntent(
+                    requireContext(),
+                    null
+                )
+                crimeSuspect.isEnabled = canResolveIntent(selectSuspectIntent)
+
+                crimeCamera.setOnClickListener{
+                    photoName = "IMG_${Date()}.JPG"
+                    val photoFile = File(requireContext().applicationContext.filesDir,photoName)
+                    val photoUri = FileProvider.getUriForFile(requireContext(),
+                    "com.bignerdranch.android.criminalintent.fileprovider",
+                    photoFile)
+                    takePhoto.launch(photoUri)
+                }
+                val captureImageIntent = takePhoto.contract.createIntent(
+                    requireContext(),
+                    null
+                )
+                crimeCamera.isEnabled = canResolveIntent(captureImageIntent)
             }
         }
         viewLifecycleOwner.lifecycleScope.launch{
@@ -126,6 +165,7 @@ class CrimeDetailFragment: Fragment() {
             crimeSuspect.text = crime.suspect.ifEmpty{
                 getString(R.string.crime_suspect_text)
             }
+            updatePhoto(crime.photoFileName)
         }
     } //end updateUi()
 
@@ -147,4 +187,51 @@ class CrimeDetailFragment: Fragment() {
             crime.title, dateString, solvedString, suspectText
         )
     }
-}
+
+    // retrieve the contact's name from the contacts applicaation
+    private fun parseContactSelection(contactUri: Uri){
+        val queryFields = arrayOf(ContactsContract.Contacts.DISPLAY_NAME)
+        val queryCursor = requireActivity().contentResolver. query(contactUri, queryFields,null, null, null)
+        queryCursor?.use { cursor ->
+            if (cursor.moveToFirst()){
+                val suspect = cursor.getString(0)
+                crimeDetailViewModel.updateCrime { oldCrime ->
+                    oldCrime.copy(suspect = suspect)
+                }
+            }
+        }
+    } // end parseContactSelection
+
+    //resovling intents
+    private fun canResolveIntent(intent: Intent): Boolean{
+        val packageManager: PackageManager = requireActivity().packageManager
+        val resolvedActivity: ResolveInfo? = packageManager.resolveActivity(
+            intent,
+            PackageManager.MATCH_DEFAULT_ONLY
+        )
+        return resolvedActivity != null
+    }
+
+    // updating crimePhoto
+    private fun updatePhoto(photoFileName: String?){
+        if(binding.crimePhoto.tag != photoFileName) {
+            val photoFile = photoFileName?.let {
+                File(requireContext().applicationContext.filesDir, it)
+            }
+            if (photoFile?.exists() == true) {
+                binding.crimePhoto.doOnLayout { measuredView ->
+                    val scaledBitmap = getScaledBitmap(
+                        photoFile.path,
+                        measuredView.width,
+                        measuredView.height
+                    )
+                    binding.crimePhoto.setImageBitmap(scaledBitmap)
+                    binding.crimePhoto.tag = photoFileName
+                }
+            }
+        } else{
+            binding.crimePhoto.setImageBitmap(null)
+            binding.crimePhoto.tag=null
+        }
+    }
+} // end CrimeDetailFragment
