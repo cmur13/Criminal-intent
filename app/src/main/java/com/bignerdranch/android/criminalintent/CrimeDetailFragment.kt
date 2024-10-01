@@ -22,11 +22,15 @@ import com.bignerdranch.android.criminalintent.databinding.FragmentCrimeDetailBi
 import kotlinx.coroutines.launch
 import java.util.Date
 import android.text.format.DateFormat
+import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.core.view.doOnLayout
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 
 private const val DATE_FORMAT = "EEE, MMM, dd"
@@ -74,6 +78,7 @@ class CrimeDetailFragment: Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
         binding.apply {
             crimeTitle.doOnTextChanged { text, _, _, _ ->
                 crimeDetailViewModel.updateCrime { oldCrime ->
@@ -85,6 +90,7 @@ class CrimeDetailFragment: Fragment() {
                 crimeDetailViewModel.updateCrime { oldCrime ->
                     oldCrime.copy(isSolved = isChecked)
                 }
+            }
                 // sending an implicity intent
                 crimeSuspect.setOnClickListener {
                     selectSuspect.launch(null)
@@ -108,7 +114,6 @@ class CrimeDetailFragment: Fragment() {
                     null
                 )
                 crimeCamera.isEnabled = canResolveIntent(captureImageIntent)
-            }
         }
         viewLifecycleOwner.lifecycleScope.launch{
             viewLifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED){
@@ -125,7 +130,17 @@ class CrimeDetailFragment: Fragment() {
                 it.copy(date = newDate)
             }
         }
-    }
+
+        // challenge TimePickerFragment
+        setFragmentResultListener(
+            TimePickerFragment.REQUEST_KEY_TIME
+        ){_, bundle ->
+            val newTime = bundle.getSerializable(TimePickerFragment.BUNDLE_KEY_TIME) as Date
+            crimeDetailViewModel.updateCrime {
+                it.copy(date = newTime)
+            }
+        }
+    } // end of onViewCreated
 
     override fun onDestroyView() {
         super.onDestroyView()
@@ -138,10 +153,16 @@ class CrimeDetailFragment: Fragment() {
             if(crimeTitle.text.toString() != crime.title){
                 crimeTitle.setText(crime.title)
             }
-            crimeDate.text = crime.date.toString()
+            crimeDate.text = formatDate(crime.date, "EEE MMM dd, yyyy")
             crimeDate.setOnClickListener {
                 findNavController().navigate(
                     CrimeDetailFragmentDirections.selectDate(crime.date)
+                )
+            }
+            crimeTime.text = formatDate(crime.date, "HH:mm zz")
+            crimeTime.setOnClickListener{
+                findNavController().navigate(
+                    CrimeDetailFragmentDirections.selectTime(crime.date)
                 )
             }
             crimeSolved.isChecked = crime.isSolved
@@ -168,6 +189,12 @@ class CrimeDetailFragment: Fragment() {
             updatePhoto(crime.photoFileName)
         }
     } //end updateUi()
+
+    // format date method
+    private fun formatDate(date: Date, pattern: String): String{
+        val formatter = SimpleDateFormat(pattern, Locale.getDefault())
+        return formatter.format(date)
+    }
 
     // adding a getCrimeReport to return a complete report
     private fun getCrimeReport(crime: Crime): String{

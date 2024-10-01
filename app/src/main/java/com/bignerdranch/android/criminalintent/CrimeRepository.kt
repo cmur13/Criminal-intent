@@ -39,6 +39,7 @@ class CrimeRepository private constructor(context: Context, private val coroutin
         database.crimeDao().addCrime(crime)
     }
 
+
     companion object{
         private var INSTANCE: CrimeRepository?= null
 

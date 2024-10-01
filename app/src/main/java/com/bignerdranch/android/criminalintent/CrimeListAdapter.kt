@@ -45,3 +45,5 @@ class CrimeListAdapter(
     }
     override fun getItemCount() = crimes.size
 }
+
+
