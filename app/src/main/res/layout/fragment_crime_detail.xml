@@ -68,7 +68,7 @@
         android:id="@+id/crime_time"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        tools:text="3:00 PT"/>
+        tools:text="3:00 EST"/>
     <CheckBox
         android:id="@+id/crime_solved"
         android:layout_width="match_parent"

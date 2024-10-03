@@ -39,6 +39,11 @@ class CrimeRepository private constructor(context: Context, private val coroutin
         database.crimeDao().addCrime(crime)
     }
 
+    // challenge: deleting a crime
+    suspend fun deleteCrime(crime: Crime){
+        database.crimeDao().deleteCrime(crime)
+    }
+
 
     companion object{
         private var INSTANCE: CrimeRepository?= null

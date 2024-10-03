@@ -22,15 +22,18 @@ import com.bignerdranch.android.criminalintent.databinding.FragmentCrimeDetailBi
 import kotlinx.coroutines.launch
 import java.util.Date
 import android.text.format.DateFormat
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.widget.Toast
-import androidx.activity.OnBackPressedCallback
-import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.core.view.doOnLayout
 import java.io.File
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
+import java.util.UUID
 
 
 private const val DATE_FORMAT = "EEE, MMM, dd"
@@ -50,15 +53,15 @@ class CrimeDetailFragment: Fragment() {
     // registering for a result
     private val selectSuspect = registerForActivityResult(
         ActivityResultContracts.PickContact()){ uri: Uri? ->
-            // invoke parseContactSelection
-            uri?.let { parseContactSelection(it)
+        // invoke parseContactSelection
+        uri?.let { parseContactSelection(it)
         }
     }
 
     private val takePhoto = registerForActivityResult(
         ActivityResultContracts.TakePicture()
     ){
-        didTakePhoto: Boolean ->
+            didTakePhoto: Boolean ->
         if(didTakePhoto && photoName != null){
             crimeDetailViewModel.updateCrime {oldCrime->
                 oldCrime.copy(photoFileName = photoName)
@@ -91,29 +94,33 @@ class CrimeDetailFragment: Fragment() {
                     oldCrime.copy(isSolved = isChecked)
                 }
             }
-                // sending an implicity intent
-                crimeSuspect.setOnClickListener {
-                    selectSuspect.launch(null)
-                }
-                val selectSuspectIntent = selectSuspect.contract.createIntent(
-                    requireContext(),
-                    null
-                )
-                crimeSuspect.isEnabled = canResolveIntent(selectSuspectIntent)
+            // sending an implicity intent
+            crimeSuspect.setOnClickListener {
+                selectSuspect.launch(null)
+            }
+            val selectSuspectIntent = selectSuspect.contract.createIntent(
+                requireContext(),
+                null
+            )
+            crimeSuspect.isEnabled = canResolveIntent(selectSuspectIntent)
 
-                crimeCamera.setOnClickListener{
-                    photoName = "IMG_${Date()}.JPG"
-                    val photoFile = File(requireContext().applicationContext.filesDir,photoName)
-                    val photoUri = FileProvider.getUriForFile(requireContext(),
-                    "com.bignerdranch.android.criminalintent.fileprovider",
-                    photoFile)
-                    takePhoto.launch(photoUri)
-                }
-                val captureImageIntent = takePhoto.contract.createIntent(
-                    requireContext(),
-                    null
+            crimeCamera.setOnClickListener{
+                photoName = "IMG_${Date()}.JPG"
+                val photoFile = File(
+                    requireContext().applicationContext.filesDir,photoName  // add for challenge: detail display
                 )
-                crimeCamera.isEnabled = canResolveIntent(captureImageIntent)
+                val photoUri = FileProvider.getUriForFile(
+                    requireContext(),
+                    "com.bignerdranch.android.criminalintent.fileprovider",
+                    photoFile
+                )
+                takePhoto.launch(photoUri)
+            }
+            val captureImageIntent = takePhoto.contract.createIntent(
+                requireContext(),
+                null
+            )
+            crimeCamera.isEnabled = canResolveIntent(captureImageIntent)
         }
         viewLifecycleOwner.lifecycleScope.launch{
             viewLifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED){
@@ -124,20 +131,30 @@ class CrimeDetailFragment: Fragment() {
         }
         setFragmentResultListener(
             DatePickerFragment.REQUEST_KEY_DATE
-        ) {_, bundle ->
+        ) { _, bundle ->
             val newDate = bundle.getSerializable(DatePickerFragment.BUNDLE_KEY_DATE) as Date
-            crimeDetailViewModel.updateCrime {
-                it.copy(date = newDate)
+            crimeDetailViewModel.updateCrime { crime ->
+                val calendar = Calendar.getInstance().apply { time = crime.date }
+                val newCalendar = Calendar.getInstance().apply { time = newDate }
+                // Update only the date part
+                calendar.set(Calendar.YEAR, newCalendar.get(Calendar.YEAR))
+                calendar.set(Calendar.MONTH, newCalendar.get(Calendar.MONTH))
+                calendar.set(Calendar.DAY_OF_MONTH, newCalendar.get(Calendar.DAY_OF_MONTH))
+                crime.copy(date = calendar.time)
             }
         }
 
-        // challenge TimePickerFragment
         setFragmentResultListener(
             TimePickerFragment.REQUEST_KEY_TIME
-        ){_, bundle ->
+        ) { _, bundle ->
             val newTime = bundle.getSerializable(TimePickerFragment.BUNDLE_KEY_TIME) as Date
-            crimeDetailViewModel.updateCrime {
-                it.copy(date = newTime)
+            crimeDetailViewModel.updateCrime { crime ->
+                val calendar = Calendar.getInstance().apply { time = crime.date }
+                val newCalendar = Calendar.getInstance().apply { time = newTime }
+                // Update only the time part
+                calendar.set(Calendar.HOUR_OF_DAY, newCalendar.get(Calendar.HOUR_OF_DAY))
+                calendar.set(Calendar.MINUTE, newCalendar.get(Calendar.MINUTE))
+                crime.copy(date = calendar.time)
             }
         }
     } // end of onViewCreated
@@ -187,14 +204,16 @@ class CrimeDetailFragment: Fragment() {
                 getString(R.string.crime_suspect_text)
             }
             updatePhoto(crime.photoFileName)
+
+            // code for chapter 17 challenge:detail display
+            crimePhoto.setOnClickListener{
+                val zoom = crime.photoFileName?.let{
+                    ZoomDialogFragment.newInstance(it)
+                }
+                zoom?.show(childFragmentManager, null)
+            }
         }
     } //end updateUi()
-
-    // format date method
-    private fun formatDate(date: Date, pattern: String): String{
-        val formatter = SimpleDateFormat(pattern, Locale.getDefault())
-        return formatter.format(date)
-    }
 
     // adding a getCrimeReport to return a complete report
     private fun getCrimeReport(crime: Crime): String{
@@ -260,5 +279,39 @@ class CrimeDetailFragment: Fragment() {
             binding.crimePhoto.setImageBitmap(null)
             binding.crimePhoto.tag=null
         }
+    }
+
+    // challenge: deleting a crime
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setHasOptionsMenu(true)
+    }
+    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+        super.onCreateOptionsMenu(menu, inflater)
+        inflater.inflate(R.menu.fragment_crime_detail, menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.delete_crime -> {
+                deleteCrime(args.crimeId)
+                findNavController().popBackStack()
+                true
+            }
+
+            else -> super.onContextItemSelected(item)
+        }
+    }
+    // format date method
+    private fun formatDate(date: Date, pattern: String): String{
+        val formatter = SimpleDateFormat(pattern, Locale.getDefault())
+        return formatter.format(date)
+    }
+    private fun deleteCrime(id: UUID) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val crime = crimeDetailViewModel.getCrime(id)
+            crimeDetailViewModel.deleteCrime(crime)
+        }
+        Toast.makeText(requireContext(), "Crime deleted.", Toast.LENGTH_SHORT).show()
     }
 } // end CrimeDetailFragment
